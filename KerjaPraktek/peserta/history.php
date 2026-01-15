@@ -1,3 +1,36 @@
+<?php
+require_once '../config/database.php';
+require_once '../includes/functions.php';
+session_start();
+
+// 1. Proteksi Halaman
+if (!isset($_SESSION['user_id'])) {
+    header("Location: ../login.php"); 
+    exit();
+}
+
+$user_id = $_SESSION['user_id'];
+$user_name = $_SESSION['nama_lengkap'] ?? 'User';
+
+// 2. Query Statistik (Kartu di atas)
+// Menghitung jumlah kursus selesai vs sedang jalan
+$query_stats = "SELECT 
+    COUNT(CASE WHEN status = 'completed' THEN 1 END) as finished,
+    COUNT(CASE WHEN status = 'in_progress' THEN 1 END) as ongoing,
+    COUNT(*) as total
+    FROM USER_COURSE_PROGRESS WHERE user_id = ?";
+$res_stats = executeQuery($query_stats, "i", [$user_id])->fetch_assoc();
+
+// 3. Query Daftar Progress (Tabel)
+$query_history = "SELECT c.course_id, c.course_name, c.level, 
+                         p.status, p.progress_percentage, p.completed_at, p.last_accessed
+                  FROM USER_COURSE_PROGRESS p
+                  JOIN COURSES c ON p.course_id = c.course_id
+                  WHERE p.user_id = ?
+                  ORDER BY p.last_accessed DESC";
+$result_history = executeQuery($query_history, "i", [$user_id]);
+?>
+
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -8,7 +41,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #fcfcfd; }
-        .active-link { color: #3b82f6; font-weight: 600; background-color: #eff6ff; border-radius: 12px; }
+        .sidebar-item { display: flex; align-items: center; gap: 12px; padding: 12px; font-size: 14px; color: #6b7280; transition: all 0.2s; border-radius: 12px; }
+        .sidebar-item:hover { color: #3b82f6; background-color: #f8fafc; }
+        .sidebar-active { color: #3b82f6; font-weight: 600; background-color: #eff6ff; }
     </style>
 </head>
 <body class="flex">
@@ -21,142 +56,102 @@
 
         <nav class="space-y-8 flex-1">
             <div>
-                <p class="text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] mb-4 px-2">Overview</p>
-                <ul class="space-y-1 text-sm text-gray-500">
-                    <li class="flex items-center gap-3 px-3 py-3 cursor-pointer hover:text-blue-500 transition-all"><span>🏠</span> <a href="dashboard.php">Dashboard</a></li>
-                    <li class="active-link flex items-center gap-3 px-3 py-3 cursor-pointer transition-all"><span>🕒</span> <a href="history.php">History</a></li>
-                    <li class="flex items-center gap-3 px-3 py-3 cursor-pointer hover:text-blue-500 transition-all"><span>📖</span> Lesson</li>
-                    <li class="flex items-center gap-3 px-3 py-3 cursor-pointer hover:text-blue-500 transition-all"><span>📋</span> Task</li>
-                </ul>
-            </div>
-
-            <div>
-                <p class="text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] mb-4 px-2">Friends</p>
-                <ul class="space-y-4 px-2">
-                    <li class="flex items-center gap-3">
-                        <div class="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-[10px]">👩‍💻</div>
-                        <div><p class="text-xs font-bold text-gray-700">Sarah</p><p class="text-[9px] text-gray-400 font-medium">Software Developer</p></div>
-                    </li>
-                    <li class="flex items-center gap-3">
-                        <div class="w-8 h-8 rounded-full border-2 border-green-400 p-0.5"><div class="w-full h-full bg-gray-200 rounded-full"></div></div>
-                        <div><p class="text-xs font-bold text-gray-700">Sahaf</p><p class="text-[9px] text-gray-400 font-medium">Software Developer</p></div>
-                    </li>
-                    <li class="flex items-center gap-3">
-                        <div class="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center text-[10px]">👩‍💻</div>
-                        <div><p class="text-xs font-bold text-gray-700">Putri</p><p class="text-[9px] text-gray-400 font-medium">Software Developer</p></div>
-                    </li>
-                </ul>
+                <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 px-2">Overview</p>
+                <a href="dashboard.php" class="sidebar-item"><span>🏠</span> Dashboard</a>
+                <a href="history.php" class="sidebar-item sidebar-active"><span>🕒</span> History</a>
+                <a href="lesson.php" class="sidebar-item"><span>📖</span> Lesson</a>
+                <a href="task.php" class="sidebar-item"><span>📋</span> Task</a>
             </div>
         </nav>
 
         <div class="space-y-2 pt-6 border-t border-gray-100">
-            <div class="flex items-center gap-3 px-3 py-2 text-sm text-gray-500 cursor-pointer hover:bg-gray-50 rounded-lg transition-all"><span>⚙️</span> Profil</div>
-            <div class="flex items-center gap-3 px-3 py-2 text-sm text-red-500 font-semibold cursor-pointer hover:bg-red-50 rounded-lg transition-all"><span>🚪</span> Logout</div>
+            <a href="profil.php" class="sidebar-item"><span>⚙️</span> Profil</a>
+            <a href="../logout.php" class="sidebar-item text-red-500 font-semibold"><span>🚪</span> Logout</a>
         </div>
     </aside>
 
     <main class="flex-1 ml-64 p-8">
-        
         <div class="flex items-center gap-4 mb-10">
             <div class="relative flex-1">
                 <span class="absolute left-4 top-3.5 text-gray-300">🔍</span>
-                <input type="text" placeholder="Search your course here..." class="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-100 shadow-sm focus:ring-1 focus:ring-blue-100 outline-none text-sm bg-white placeholder:italic">
+                <input type="text" placeholder="Search your history..." class="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-100 shadow-sm focus:ring-1 focus:ring-blue-100 outline-none text-sm bg-white">
             </div>
-            <button class="w-12 h-12 bg-white rounded-2xl shadow-sm border border-gray-100 flex items-center justify-center text-gray-400">
-                <span class="text-xl">⚲</span>
-            </button>
         </div>
 
         <div class="grid grid-cols-3 gap-6 mb-10">
-            <?php 
-                $stats = [
-                    ['title' => '2/8 Finished', 'sub' => 'Developer', 'color' => 'bg-purple-100', 'icon' => '🔔'],
-                    ['title' => '2/8 On Going', 'sub' => 'Finishing', 'color' => 'bg-blue-100', 'icon' => '🔔'],
-                    ['title' => '2/8 Finished', 'sub' => 'Back', 'color' => 'bg-purple-100', 'icon' => '🔔'],
-                ];
-                foreach ($stats as $s): 
-            ?>
-            <div class="bg-white p-5 rounded-3xl shadow-sm border border-gray-50 flex items-center justify-between">
-                <div class="flex items-center gap-4">
-                    <div class="w-12 h-12 <?= $s['color'] ?> rounded-2xl flex items-center justify-center text-blue-500 opacity-80"><?= $s['icon'] ?></div>
-                    <div>
-                        <p class="text-[11px] font-bold text-gray-400 tracking-wide uppercase"><?= $s['title'] ?></p>
-                        <p class="text-sm font-bold text-gray-800"><?= $s['sub'] ?></p>
-                    </div>
+            <div class="bg-white p-5 rounded-3xl shadow-sm border border-gray-50 flex items-center gap-4">
+                <div class="w-12 h-12 bg-purple-100 rounded-2xl flex items-center justify-center text-purple-600">🏆</div>
+                <div>
+                    <p class="text-[10px] font-bold text-gray-400 uppercase"><?= $res_stats['finished'] ?> Finished</p>
+                    <p class="text-sm font-bold text-gray-800">Completed Courses</p>
                 </div>
-                <span class="text-gray-300 font-bold">⋮</span>
             </div>
-            <?php endforeach; ?>
+            <div class="bg-white p-5 rounded-3xl shadow-sm border border-gray-50 flex items-center gap-4">
+                <div class="w-12 h-12 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600">⏳</div>
+                <div>
+                    <p class="text-[10px] font-bold text-gray-400 uppercase"><?= $res_stats['ongoing'] ?> On Going</p>
+                    <p class="text-sm font-bold text-gray-800">Learning Progress</p>
+                </div>
+            </div>
+            <div class="bg-white p-5 rounded-3xl shadow-sm border border-gray-50 flex items-center gap-4">
+                <div class="w-12 h-12 bg-green-100 rounded-2xl flex items-center justify-center text-green-600">📚</div>
+                <div>
+                    <p class="text-[10px] font-bold text-gray-400 uppercase"><?= $res_stats['total'] ?> Total</p>
+                    <p class="text-sm font-bold text-gray-800">Enrolled Courses</p>
+                </div>
+            </div>
         </div>
 
-        <div class="flex justify-between items-center mb-6">
-            <h3 class="font-bold text-gray-800 text-lg">Your Progress</h3>
-            <a href="#" class="text-blue-500 text-xs font-bold underline">See All</a>
-        </div>
+        <h3 class="font-bold text-gray-800 text-lg mb-6">Learning History</h3>
 
-        <div class="bg-white rounded-[2rem] p-6 shadow-sm border border-gray-50">
+        <div class="bg-white rounded-[2rem] p-6 shadow-sm border border-gray-50 overflow-hidden">
             <table class="w-full text-left">
                 <thead>
                     <tr class="text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-50">
-                        <th class="pb-6 px-4">Instructor Name & Date</th>
-                        <th class="pb-6 px-4">Course Type</th>
-                        <th class="pb-6 px-4 text-center">Course Title</th>
+                        <th class="pb-6 px-4">Course Name & Last Access</th>
+                        <th class="pb-6 px-4 text-center">Progress</th>
+                        <th class="pb-6 px-4 text-center">Status</th>
                         <th class="pb-6 px-4 text-right">Actions</th>
                     </tr>
                 </thead>
-<tbody class="text-sm">
-    <?php
-    $courses = [
-        ['title' => 'Pengenalan Data & Data Literacy', 'type' => 'LANJUTKAN', 'status' => 'blue'],
-        ['title' => 'Fundamental Data Untuk Pengambilan Keputusan', 'type' => 'LANJUTKAN', 'status' => 'blue'],
-        ['title' => 'Dasar Statistik Bisnis', 'type' => 'SELESAI', 'status' => 'purple'],
-        ['title' => 'Analisis Data Menggunakan SQL Dasar', 'type' => 'SELESAI', 'status' => 'purple'],
-        ['title' => 'Data Cleaning Dan Validasi Data', 'type' => 'LANJUTKAN', 'status' => 'blue'],
-        ['title' => 'Visualisasi Dan Pelaporan Data', 'type' => 'MULAI', 'status' => 'indigo'],
-        ['title' => 'Etika Dan Keamanan Data', 'type' => 'MULAI', 'status' => 'indigo'],
-    ];
-
-    foreach ($courses as $c):
-        if ($c['type'] == 'SELESAI') {
-            $btnLabel = 'LIHAT SERTIFIKAT';
-            $targetPage = 'lihat_sertif.php'; 
-        } else {
-            $btnLabel = 'LIHAT DETAIL';
-            $targetPage = 'detail_kursus.php'; 
-        }
-    ?>
-    <tr class="group hover:bg-gray-50 transition-all border-b border-gray-50 last:border-0">
-        <td class="py-5 px-4">
-            <div class="flex items-center gap-3">
-                <div class="w-5 h-5 rounded-full border-2 border-green-400"></div>
-                <div>
-                    <p class="font-bold text-gray-700 leading-tight"><?= $c['title'] ?></p>
-                    <p class="text-[10px] text-gray-400 font-medium mt-1">25/2/2025</p>
-                </div>
-            </div>
-        </td>
-        <td class="py-5 px-4">
-            <span class="text-[9px] font-black px-3 py-1 bg-purple-100 text-purple-600 rounded-lg tracking-tighter italic">
-                <?= $c['type'] ?>
-            </span>
-        </td>
-        <td class="py-5 px-4 text-center">
-            <p class="text-xs text-gray-500 font-medium">Understanding Concept Of React</p>
-        </td>
-        <td class="py-5 px-4 text-right">
-            <a href="<?= $targetPage ?>" class="inline-block">
-                <button class="text-[10px] font-bold text-blue-400 border border-blue-100 px-4 py-1.5 rounded-lg hover:bg-blue-500 hover:text-white transition-all uppercase">
-                    <?= $btnLabel ?>
-                </button>
-            </a>
-        </td>
-    </tr>
-    <?php endforeach; ?>
-</tbody>
+                <tbody class="text-sm">
+                    <?php if ($result_history->num_rows == 0): ?>
+                        <tr><td colspan="4" class="py-10 text-center text-gray-400">Belum ada riwayat belajar.</td></tr>
+                    <?php else: ?>
+                        <?php while ($c = $result_history->fetch_assoc()): 
+                            $isDone = ($c['status'] == 'completed');
+                        ?>
+                        <tr class="group hover:bg-gray-50 transition-all border-b border-gray-50 last:border-0">
+                            <td class="py-5 px-4">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-2 h-2 rounded-full <?= $isDone ? 'bg-green-400' : 'bg-blue-400' ?>"></div>
+                                    <div>
+                                        <p class="font-bold text-gray-700 leading-tight"><?= htmlspecialchars($c['course_name']) ?></p>
+                                        <p class="text-[10px] text-gray-400 mt-1">Akses terakhir: <?= date('d/m/Y', strtotime($c['last_accessed'])) ?></p>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="py-5 px-4 text-center">
+                                <span class="text-xs font-bold text-gray-600"><?= round($c['progress_percentage']) ?>%</span>
+                            </td>
+                            <td class="py-5 px-4 text-center">
+                                <span class="text-[9px] font-black px-3 py-1 rounded-lg italic <?= $isDone ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600' ?>">
+                                    <?= strtoupper($c['status']) ?>
+                                </span>
+                            </td>
+                            <td class="py-5 px-4 text-right">
+                                <?php if ($isDone): ?>
+                                    <a href="lihat_sertif.php?course_id=<?= $c['course_id'] ?>" class="text-[10px] font-bold text-purple-500 border border-purple-100 px-4 py-1.5 rounded-lg hover:bg-purple-500 hover:text-white transition-all">LIHAT SERTIFIKAT</a>
+                                <?php else: ?>
+                                    <a href="learn.php?course_id=<?= $c['course_id'] ?>" class="text-[10px] font-bold text-blue-400 border border-blue-100 px-4 py-1.5 rounded-lg hover:bg-blue-500 hover:text-white transition-all">LANJUTKAN</a>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                        <?php endwhile; ?>
+                    <?php endif; ?>
+                </tbody>
             </table>
         </div>
-
     </main>
-
 </body>
 </html>

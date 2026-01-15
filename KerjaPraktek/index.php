@@ -3,19 +3,22 @@ require_once 'config/database.php';
 require_once 'includes/functions.php';
 session_start();
 
-$pageTitle = "Artavista Learning Platform";
+$pageTitle = "ByteForge Learning Platform";
 
 // Ambil course populer dari database
 $conn = getDBConnection();
-$query = "SELECT c.*, u.nama_lengkap as pengajar_nama, 
-          COUNT(DISTINCT e.id) as total_enrollment
-          FROM courses c
-          LEFT JOIN users u ON c.pengajar_id = u.id
-          LEFT JOIN enrollments e ON c.id = e.course_id AND e.status = 'verified'
-          WHERE c.status = 'published'
-          GROUP BY c.id
+
+// Query yang sudah diperbaiki untuk ByteForgeDB
+$query = "SELECT c.*, 
+          COUNT(DISTINCT ucp.progress_id) as total_enrollment
+          FROM COURSES c
+          LEFT JOIN USER_COURSE_PROGRESS ucp ON c.course_id = ucp.course_id 
+              AND ucp.status IN ('in_progress', 'completed')
+          WHERE c.is_published = 1
+          GROUP BY c.course_id
           ORDER BY total_enrollment DESC, c.created_at DESC
           LIMIT 6";
+
 $popularCourses = $conn->query($query);
 ?>
 
@@ -152,7 +155,7 @@ $popularCourses = $conn->query($query);
                 <div class="col-lg-7">
                     <h1 class="hero-title">Belajar, Berkembang,<br>Berkarya Bersama</h1>
                     <p class="hero-subtitle">
-                        Platform pembelajaran internal untuk karyawan PT Artavista.
+                        Platform pembelajaran ByteForge untuk pengembangan karyawan.
                     </p>
                     <a href="<?php echo url('register.php'); ?>" class="btn btn-register-main">Register</a>
                 </div>
@@ -179,8 +182,8 @@ $popularCourses = $conn->query($query);
                 <?php while ($course = $popularCourses->fetch_assoc()): ?>
                     <div class="col-md-4">
                         <div class="card h-100 course-card shadow-sm">
-                            <?php if ($course['thumbnail']): ?>
-                                <img src="<?php echo uploadUrl('uploads/course_thumbnails/' . htmlspecialchars($course['thumbnail'])); ?>" 
+                            <?php if (!empty($course['thumbnail_url'])): ?>
+                                <img src="<?php echo htmlspecialchars($course['thumbnail_url']); ?>" 
                                      class="card-img-top" alt="Course Thumbnail" style="height: 200px; object-fit: cover;">
                             <?php else: ?>
                                 <div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 200px;">
@@ -188,13 +191,31 @@ $popularCourses = $conn->query($query);
                                 </div>
                             <?php endif; ?>
                             <div class="card-body p-4">
-                                <h5 class="card-title fw-bold mb-2"><?php echo htmlspecialchars($course['judul']); ?></h5>
+                                <h5 class="card-title fw-bold mb-2"><?php echo htmlspecialchars($course['course_name']); ?></h5>
                                 <p class="text-muted small mb-3">
-                                    <i class="bi bi-person-circle me-1"></i> <?php echo htmlspecialchars($course['pengajar_nama']); ?>
+                                    <i class="bi bi-clock me-1"></i> <?php echo htmlspecialchars($course['duration_hours']); ?> Jam
+                                    <span class="ms-3">
+                                        <i class="bi bi-bar-chart me-1"></i> 
+                                        <?php 
+                                            $levelMap = [
+                                                'beginner' => 'Pemula',
+                                                'intermediate' => 'Menengah',
+                                                'advanced' => 'Lanjutan'
+                                            ];
+                                            echo $levelMap[$course['level']] ?? 'Pemula';
+                                        ?>
+                                    </span>
+                                </p>
+                                <p class="card-text text-muted small" style="height: 60px; overflow: hidden;">
+                                    <?php echo htmlspecialchars(substr($course['course_description'], 0, 100)); ?>...
                                 </p>
                                 <div class="d-flex justify-content-between align-items-center mt-4">
-                                    <span class="text-primary fw-bold fs-5"><?php echo formatRupiah($course['harga']); ?></span>
-                                    <a href="<?php echo url('peserta/courses.php?view=' . $course['id']); ?>" class="btn btn-sm btn-primary px-3 rounded-pill">Detail</a>
+                                    <span class="text-primary fw-bold">
+                                        <i class="bi bi-people-fill me-1"></i>
+                                        <?php echo $course['total_enrollment']; ?> Peserta
+                                    </span>
+                                    <a href="<?php echo url('peserta/courses.php?view=' . $course['course_id']); ?>" 
+                                       class="btn btn-sm btn-primary px-3 rounded-pill">Detail</a>
                                 </div>
                             </div>
                         </div>
@@ -209,6 +230,5 @@ $popularCourses = $conn->query($query);
         </div>
     </div>
 </section>
-
 
 <?php include 'includes/footer.php'; ?>

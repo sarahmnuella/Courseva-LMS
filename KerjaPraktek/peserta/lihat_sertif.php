@@ -14,19 +14,20 @@
 </head>
 <body class="flex">
 
-    <aside class="w-64 min-h-screen p-6 border-r border-gray-100 flex flex-col fixed">
+     <aside class="w-64 min-h-screen p-6 border-r border-gray-100 flex flex-col fixed bg-white z-50">
         <div class="flex items-center gap-2 mb-10 px-2">
             <div class="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center text-white font-bold text-xs shadow-md">B</div>
-            <span class="font-bold text-blue-900 tracking-wide text-lg">COURSEVA</span>
+            <span class="font-bold text-blue-900 tracking-wide text-lg uppercase">COURSEVA</span>
         </div>
 
-        <nav class="space-y-8 flex-1">
+        <nav class="space-y-6 flex-1">
             <div>
                 <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 px-2">Overview</p>
-                <div class="sidebar-item cursor-pointer"><span>🏠</span> Dashboard</div>
-                <div class="sidebar-item sidebar-active cursor-pointer"><span>🕒</span> History</div>
-                <div class="sidebar-item cursor-pointer"><span>📖</span> Lesson</div>
-                <div class="sidebar-item cursor-pointer"><span>📋</span> Task</div>
+                <div class="sidebar-item cursor-pointer"><span>🏠</span><a href="dashboard.php">Dashboard</a></div>
+                <div class="sidebar-item sidebar-active cursor-pointer"><span>🕒</span> <a href="history.php">History</a></div>
+                <div class="sidebar-item cursor-pointer"><span>📖</span><a href="lesson.php">Lesson</a></div>
+                <div class="sidebar-item cursor-pointer"><span>📋</span> <a href="task.php">Task</a></div>
+                </ul>
             </div>
             
             <div>
@@ -34,11 +35,11 @@
                 <div class="space-y-4 px-2">
                     <div class="flex items-center gap-3">
                         <div class="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-[10px]">👩‍💻</div>
-                        <div><p class="text-xs font-bold text-gray-700">Sarah</p><p class="text-[9px] text-gray-400">Software Developer</p></div>
+                        <div><p class="text-xs font-bold text-gray-700">Sarah</p><p class="text-[9px] text-gray-400 font-medium">Software Developer</p></div>
                     </div>
                     <div class="flex items-center gap-3">
                         <div class="w-8 h-8 rounded-full border-2 border-green-400 p-0.5"><div class="w-full h-full bg-gray-200 rounded-full"></div></div>
-                        <div><p class="text-xs font-bold text-gray-700">Sahaf</p><p class="text-[9px] text-gray-400">Software Developer</p></div>
+                        <div><p class="text-xs font-bold text-gray-700">Sahaf</p><p class="text-[9px] text-gray-400 font-medium">Software Developer</p></div>
                     </div>
                 </div>
             </div>
@@ -46,10 +47,9 @@
 
         <div class="pt-6 border-t border-gray-100 space-y-2">
             <div class="sidebar-item cursor-pointer"><span>⚙️</span> Profil</div>
-            <div class="sidebar-item cursor-pointer text-red-500 font-semibold"><span>🚪</span> Logout</div>
+            <div class="sidebar-item cursor-pointer text-red-500 font-semibold hover:bg-red-50"><span>🚪</span> Logout</div>
         </div>
     </aside>
-
     <main class="flex-1 ml-64 p-8">
         
         <div class="flex items-center gap-4 mb-8">

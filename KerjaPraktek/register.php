@@ -3,13 +3,85 @@ require_once 'config/database.php';
 require_once 'includes/functions.php';
 session_start();
 
-$pageTitle = "Register - PT Artavista";
+$pageTitle = "Register - ByteForge LMS";
 
 // Cek jika sudah login
 if (isset($_SESSION['user_id'])) {
-    $basePath = getBasePath();
-    header("Location: {$basePath}/" . $_SESSION['role'] . "/dashboard.php");
+    header("Location: dashboard.php");
     exit();
+}
+
+$errors = [];
+$success = false;
+
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    $nama_lengkap = sanitize($_POST['nama_lengkap'] ?? '');
+    $nomor_telepon = sanitize($_POST['nomor_telepon'] ?? '');
+    $id_karyawan = sanitize($_POST['nik'] ?? '');
+    $email = sanitize($_POST['email'] ?? '');
+    $password = $_POST['password'] ?? '';
+    $confirm_password = $_POST['confirm_password'] ?? '';
+    
+    // Validasi input
+    if (empty($nama_lengkap) || empty($nomor_telepon) || empty($id_karyawan) || empty($email) || empty($password)) {
+        $errors[] = "Semua field harus diisi.";
+    }
+    
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $errors[] = "Format email tidak valid.";
+    }
+    
+    if (strlen($password) < 6) {
+        $errors[] = "Password minimal 6 karakter.";
+    }
+    
+    if ($password !== $confirm_password) {
+        $errors[] = "Password dan konfirmasi password tidak sama.";
+    }
+    
+    // Jika tidak ada error, cek duplikasi dan insert
+    if (empty($errors)) {
+        $conn = getDBConnection();
+        
+        // Cek email sudah terdaftar
+        $checkEmail = "SELECT user_id FROM USERS WHERE email = ?";
+        $stmt = $conn->prepare($checkEmail);
+        $stmt->bind_param("s", $email);
+        $stmt->execute();
+        if ($stmt->get_result()->num_rows > 0) {
+            $errors[] = "Email sudah terdaftar.";
+        }
+        $stmt->close();
+        
+        // Cek ID Karyawan sudah terdaftar
+        $checkNIK = "SELECT user_id FROM USERS WHERE id_karyawan = ?";
+        $stmt = $conn->prepare($checkNIK);
+        $stmt->bind_param("s", $id_karyawan);
+        $stmt->execute();
+        if ($stmt->get_result()->num_rows > 0) {
+            $errors[] = "ID Karyawan sudah terdaftar.";
+        }
+        $stmt->close();
+        
+        // Jika tidak ada duplikasi, insert data
+        if (empty($errors)) {
+            $hashed_password = password_hash($password, PASSWORD_BCRYPT);
+            
+            $insertQuery = "INSERT INTO USERS (nama_lengkap, id_karyawan, nomor_telepon, email, kata_sandi, is_active) 
+                           VALUES (?, ?, ?, ?, ?, 1)";
+            $stmt = $conn->prepare($insertQuery);
+            $stmt->bind_param("sssss", $nama_lengkap, $id_karyawan, $nomor_telepon, $email, $hashed_password);
+            
+            if ($stmt->execute()) {
+                $success = true;
+                // Redirect ke login setelah 2 detik
+                header("refresh:2;url=login.php");
+            } else {
+                $errors[] = "Terjadi kesalahan saat mendaftar. Silakan coba lagi.";
+            }
+            $stmt->close();
+        }
+    }
 }
 ?>
 
@@ -33,7 +105,6 @@ if (isset($_SESSION['user_id'])) {
         padding: 40px 20px;
     }
 
-    /* Container Putih Utama */
     .register-card {
         background: white;
         border-radius: 40px;
@@ -42,11 +113,10 @@ if (isset($_SESSION['user_id'])) {
         display: flex;
         overflow: hidden;
         box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-        border: 10px solid white; /* Border putih tebal sesuai gambar */
+        border: 10px solid white;
         padding: 0; 
     }
 
-    /* Sisi Kiri (Formulir) */
     .form-section {
         width: 50%;
         padding: 50px 70px;
@@ -69,7 +139,6 @@ if (isset($_SESSION['user_id'])) {
         margin-bottom: 30px;
     }
 
-    /* Styling Input */
     .form-group {
         margin-bottom: 15px;
     }
@@ -93,7 +162,6 @@ if (isset($_SESSION['user_id'])) {
         box-sizing: border-box;
     }
 
-    /* Tombol Sign Up */
     .btn-signup {
         background-color: #4a89dc;
         color: white;
@@ -111,7 +179,6 @@ if (isset($_SESSION['user_id'])) {
         background-color: #357ebd;
     }
 
-    /* Divider Or */
     .divider {
         display: flex;
         align-items: center;
@@ -143,16 +210,14 @@ if (isset($_SESSION['user_id'])) {
         text-decoration: none;
     }
 
-    /* Sisi Kanan (Background Sama dengan Body) */
     .image-section {
         width: 50%;
-        /* Menggunakan gambar yang sama persis dengan body */
         background-image: url('assets/img/Background.png');
         background-size: cover;
         background-position: center;
         position: relative;
-        border-radius: 30px; /* Lengkungan di dalam gambar agar sesuai mockup */
-        margin: 10px; /* Memberi jarak sedikit agar border putih card terlihat */
+        border-radius: 30px;
+        margin: 10px;
         display: flex;
         flex-direction: column;
         justify-content: flex-end;
@@ -160,7 +225,6 @@ if (isset($_SESSION['user_id'])) {
         color: white;
     }
 
-    /* Overlay gradasi agar teks terbaca tetap kontras */
     .image-section::after {
         content: '';
         position: absolute;
@@ -189,7 +253,6 @@ if (isset($_SESSION['user_id'])) {
         opacity: 0.9;
     }
 
-    /* Responsive */
     @media (max-width: 992px) {
         .register-card { flex-direction: column-reverse; }
         .form-section, .image-section { width: 100%; }
@@ -201,37 +264,49 @@ if (isset($_SESSION['user_id'])) {
     <div class="register-card">
         <div class="form-section">
             <h1>Hello User !</h1>
-            <p class="subtitle">Enter below details to create an account</p>
+            <p class="subtitle">Masukkan detail di bawah untuk membuat akun</p>
+
+            <?php if ($success): ?>
+                <div class="alert alert-success py-2 small">
+                    Registrasi berhasil! Anda akan diarahkan ke halaman login...
+                </div>
+            <?php endif; ?>
+
+            <?php if (!empty($errors)): ?>
+                <div class="alert alert-danger py-2 small">
+                    <?php foreach ($errors as $error) echo htmlspecialchars($error) . '<br>'; ?>
+                </div>
+            <?php endif; ?>
 
             <form action="" method="POST">
                 <div class="form-group">
                     <label>Nama Lengkap</label>
-                    <input type="text" name="nama_lengkap" class="form-control-custom" placeholder="Enter your full name" required>
+                    <input type="text" name="nama_lengkap" class="form-control-custom" placeholder="Masukkan nama lengkap" required>
                 </div>
 
                 <div class="form-group">
                     <label>Nomor Telepon</label>
-                    <input type="text" name="nomor_telepon" class="form-control-custom" placeholder="Enter your number Phone" required>
+                    <input type="text" name="nomor_telepon" class="form-control-custom" placeholder="Masukkan nomor telepon" required>
                 </div>
 
                 <div class="form-group">
-                    <label>Nomor Induk Karyawan / Id Karyawan</label>
-                    <input type="text" name="nik" class="form-control-custom" placeholder="Enter Your Id Karyawan" required>
+                    <label>ID Karyawan</label>
+                    <input type="text" name="nik" class="form-control-custom" placeholder="Masukkan ID Karyawan" required>
                 </div>
 
                 <div class="form-group">
                     <label>E-Mail</label>
-                    <input type="email" name="email" class="form-control-custom" placeholder="Enter your mail" required>
+                    <input type="email" name="email" class="form-control-custom" placeholder="Masukkan email" required>
                 </div>
 
                 <div class="form-group">
                     <label>Kata Sandi</label>
-                    <input type="password" name="password" class="form-control-custom" placeholder="Enter password" required>
+                    <input type="password" name="password" class="form-control-custom" placeholder="Masukkan password (min. 6 karakter)" required>
                 </div>
 
                 <div class="form-group">
                     <label>Konfirmasi Kata Sandi</label>
-                    <input type="password" name="confirm_password" class="form-control-custom" placeholder="Confirm your password" required>
+                    <input type="password" name="confirm_password" class="form-control-custom" placeholder="Konfirmasi password" required>
                 </div>
 
                 <button type="submit" class="btn-signup">Sign Up</button>
@@ -242,14 +317,14 @@ if (isset($_SESSION['user_id'])) {
             </div>
 
             <p class="login-link">
-                Already have an account ? <a href="login.php">Login Here</a>
+                Sudah punya akun? <a href="login.php">Login Here</a>
             </p>
         </div>
 
         <div class="image-section">
             <div class="text-overlay">
                 <h2>Setiap Langkah<br>Belajar Membawa<br>Perubahan</h2>
-                <p>Mari berkembang bersama dan wujudkan potensi terbaikmu di PT Artavista.</p>
+                <p>Mari berkembang bersama dan wujudkan potensi terbaikmu di ByteForge.</p>
             </div>
         </div>
     </div>

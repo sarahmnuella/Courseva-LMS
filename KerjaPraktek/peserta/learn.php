@@ -1,286 +1,109 @@
 <?php
 require_once '../config/database.php';
 require_once '../includes/functions.php';
-require_once '../includes/session_check.php';
+session_start();
 
-requirePeserta();
-
-$pageTitle = "Belajar Course - Courseva";
-$userId = $_SESSION['user_id'];
-$courseId = $_GET['course_id'] ?? null;
-
-if (!$courseId) {
-    redirectWithMessage('/peserta/courses.php', 'Course tidak ditemukan.', 'error');
+// Proteksi Halaman
+if (!isset($_SESSION['user_id'])) {
+    header("Location: ../login.php"); 
+    exit();
 }
 
-// Cek apakah sudah enroll
-if (!isEnrolled($userId, $courseId)) {
-    redirectWithMessage('/peserta/courses.php?view=' . $courseId, 'Anda belum terdaftar di course ini.', 'error');
+// Ambil ID dari URL (Contoh: learn.php?course_id=1&module_id=5)
+$course_id = isset($_GET['course_id']) ? (int)$_GET['course_id'] : 0;
+$module_id = isset($_GET['module_id']) ? (int)$_GET['module_id'] : 0;
+
+// 1. Ambil Data Modul & Course untuk Header
+$query_mod = "SELECT m.*, c.course_name 
+              FROM MODULES m 
+              JOIN COURSES c ON m.course_id = c.course_id 
+              WHERE m.module_id = ? AND m.course_id = ?";
+$mod_res = executeQuery($query_mod, "ii", [$module_id, $course_id]);
+$module_data = $mod_res->fetch_assoc();
+
+// Jika data tidak ditemukan
+if (!$module_data) {
+    die("<div style='text-align:center; padding:50px;'><h2>Konten Modul Tidak Ditemukan.</h2><a href='dashboard.php'>Kembali</a></div>");
 }
 
-$conn = getDBConnection();
-
-// Ambil detail course
-$query = "SELECT c.*, u.nama_lengkap as pengajar_nama 
-          FROM courses c
-          LEFT JOIN users u ON c.pengajar_id = u.id
-          WHERE c.id = ?";
-$stmt = $conn->prepare($query);
-$stmt->bind_param("i", $courseId);
-$stmt->execute();
-$result = $stmt->get_result();
-$course = $result->fetch_assoc();
-$stmt->close();
-
-if (!$course) {
-    redirectWithMessage('/peserta/courses.php', 'Course tidak ditemukan.', 'error');
-}
-
-// Ambil semua modul
-$query = "SELECT * FROM modules WHERE course_id = ? ORDER BY urutan ASC";
-$stmt = $conn->prepare($query);
-$stmt->bind_param("i", $courseId);
-$stmt->execute();
-$modules = $stmt->get_result();
-
-// Ambil progress modul
-$query = "SELECT module_id, status FROM module_progress WHERE user_id = ? AND course_id = ?";
-$stmt = $conn->prepare($query);
-$stmt->bind_param("ii", $userId, $courseId);
-$stmt->execute();
-$progressResult = $stmt->get_result();
-$progress = [];
-while ($p = $progressResult->fetch_assoc()) {
-    $progress[$p['module_id']] = $p['status'];
-}
-$stmt->close();
-
-// Hitung progress
-$totalModules = $modules->num_rows;
-$completedModules = 0;
-foreach ($progress as $status) {
-    if ($status == 'completed') {
-        $completedModules++;
-    }
-}
-$courseProgress = $totalModules > 0 ? round(($completedModules / $totalModules) * 100) : 0;
-
-// Ambil modul yang sedang dilihat
-$moduleId = $_GET['module_id'] ?? null;
-$currentModule = null;
-
-if ($moduleId) {
-    $query = "SELECT * FROM modules WHERE id = ? AND course_id = ?";
-    $stmt = $conn->prepare($query);
-    $stmt->bind_param("ii", $moduleId, $courseId);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $currentModule = $result->fetch_assoc();
-    $stmt->close();
-} elseif ($modules->num_rows > 0) {
-    // Ambil modul pertama
-    $modules->data_seek(0);
-    $currentModule = $modules->fetch_assoc();
-    $moduleId = $currentModule['id'];
-}
-
-// Mark as complete
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['mark_complete']) && $moduleId) {
-    // Cek apakah sudah ada progress
-    $query = "SELECT id FROM module_progress WHERE user_id = ? AND course_id = ? AND module_id = ?";
-    $stmt = $conn->prepare($query);
-    $stmt->bind_param("iii", $userId, $courseId, $moduleId);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    
-    if ($result->num_rows > 0) {
-        // Update
-        $query = "UPDATE module_progress SET status = 'completed', updated_at = NOW() 
-                  WHERE user_id = ? AND course_id = ? AND module_id = ?";
-        $stmt = $conn->prepare($query);
-        $stmt->bind_param("iii", $userId, $courseId, $moduleId);
-        $stmt->execute();
-    } else {
-        // Insert
-        $query = "INSERT INTO module_progress (user_id, course_id, module_id, status, created_at) 
-                  VALUES (?, ?, ?, 'completed', NOW())";
-        $stmt = $conn->prepare($query);
-        $stmt->bind_param("iii", $userId, $courseId, $moduleId);
-        $stmt->execute();
-    }
-    $stmt->close();
-    
-    redirectWithMessage('/peserta/learn.php?course_id=' . $courseId . '&module_id=' . $moduleId, 'Modul ditandai sebagai selesai.', 'success');
-}
-
-// Cek apakah semua modul sudah selesai untuk menampilkan tombol exam
-$allModulesCompleted = isAllModulesCompleted($userId, $courseId);
-
-// Ambil exam jika ada
-$exam = null;
-if ($allModulesCompleted) {
-    $query = "SELECT * FROM exams WHERE course_id = ? LIMIT 1";
-    $stmt = $conn->prepare($query);
-    $stmt->bind_param("i", $courseId);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $exam = $result->fetch_assoc();
-    $stmt->close();
-}
+// 2. Ambil Isi Konten dari Database (Tabel MODULE_CONTENT)
+$query_content = "SELECT * FROM MODULE_CONTENT WHERE module_id = ? ORDER BY content_order ASC";
+$content_res = executeQuery($query_content, "i", [$module_id]);
 ?>
-<?php include '../includes/header.php'; ?>
 
-<div class="container-fluid my-4">
-    <div class="row">
-        <!-- Sidebar Modul -->
-        <div class="col-md-3">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0"><?php echo htmlspecialchars($course['judul']); ?></h5>
-                </div>
-                <div class="card-body p-0">
-                    <div class="progress m-3" style="height: 8px;">
-                        <div class="progress-bar" role="progressbar" style="width: <?php echo $courseProgress; ?>%"></div>
-                    </div>
-                    <p class="px-3 mb-2"><small>Progress: <?php echo $courseProgress; ?>%</small></p>
-                    
-                    <ul class="list-group list-group-flush">
-                        <?php
-                        $modules->data_seek(0);
-                        $moduleIndex = 1;
-                        while ($module = $modules->fetch_assoc()):
-                            $isCompleted = isset($progress[$module['id']]) && $progress[$module['id']] == 'completed';
-                            $isActive = $module['id'] == $moduleId;
-                        ?>
-                            <li class="list-group-item <?php echo $isActive ? 'active' : ''; ?>">
-                                <div class="d-flex align-items-center">
-                                    <?php if ($isCompleted): ?>
-                                        <i class="bi bi-check-circle-fill text-success me-2"></i>
-                                    <?php else: ?>
-                                        <i class="bi bi-circle me-2"></i>
-                                    <?php endif; ?>
-                                    <a href="<?php echo url('peserta/learn.php?course_id=' . $courseId . '&module_id=' . $module['id']); ?>" 
-                                       class="text-decoration-none <?php echo $isActive ? 'text-white' : ''; ?>">
-                                        Modul <?php echo $moduleIndex; ?>: <?php echo htmlspecialchars($module['judul']); ?>
-                                    </a>
-                                </div>
-                            </li>
-                        <?php
-                            $moduleIndex++;
-                        endwhile;
-                        ?>
-                    </ul>
-                    
-                    <?php if ($allModulesCompleted && $exam): ?>
-                        <div class="p-3">
-                            <a href="<?php echo url('peserta/exam.php?exam_id=' . $exam['id']); ?>" class="btn btn-success w-100">
-                                <i class="bi bi-pencil-square"></i> Take Exam
-                            </a>
-                        </div>
-                    <?php endif; ?>
-                </div>
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Belajar: <?= htmlspecialchars($module_data['module_name']) ?></title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #ffffff; }
+        .content-area::-webkit-scrollbar { width: 6px; }
+        .content-area::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-gray-50">
+
+    <nav class="bg-white border-b border-gray-100 sticky top-0 z-50 px-8 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-4">
+            <a href="lesson.php?id=<?= $course_id ?>" class="text-gray-400 hover:text-blue-600 transition">← Kembali</a>
+            <div class="h-6 w-[1px] bg-gray-200"></div>
+            <div>
+                <h1 class="text-sm font-bold text-gray-800"><?= htmlspecialchars($module_data['module_name']) ?></h1>
+                <p class="text-[10px] text-gray-400 uppercase tracking-widest"><?= htmlspecialchars($module_data['course_name']) ?></p>
             </div>
         </div>
-        
-        <!-- Konten Modul -->
-        <div class="col-md-9">
-            <?php if ($currentModule): ?>
-                <div class="card">
-                    <div class="card-header">
-                        <h4 class="mb-0"><?php echo htmlspecialchars($currentModule['judul']); ?></h4>
-                    </div>
-                    <div class="card-body">
-                        <p class="text-muted">
-                            <i class="bi bi-clock"></i> Durasi: <?php echo $currentModule['durasi']; ?> menit
-                        </p>
-                        
-                        <div class="mb-4">
-                            <?php if ($currentModule['tipe_konten'] == 'video' && $currentModule['file_path']): ?>
-                                <video controls class="w-100" style="max-height: 500px;">
-                                    <source src="<?php echo uploadUrl('uploads/module_files/' . htmlspecialchars($currentModule['file_path'])); ?>" type="video/mp4">
-                                    Browser Anda tidak mendukung video player.
-                                </video>
-                            <?php elseif ($currentModule['tipe_konten'] == 'pdf' && $currentModule['file_path']): ?>
-                                <iframe src="<?php echo uploadUrl('uploads/module_files/' . htmlspecialchars($currentModule['file_path'])); ?>" 
-                                        class="w-100" style="height: 600px;"></iframe>
-                            <?php else: ?>
-                                <div class="content-text">
-                                    <?php echo nl2br(htmlspecialchars($currentModule['konten'])); ?>
+        <a href="Quiz.php?course_id=<?= $course_id ?>" class="bg-blue-600 text-white px-6 py-2 rounded-full text-xs font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-100">Ambil Quiz</a>
+    </nav>
+
+    <div class="max-w-5xl mx-auto py-10 px-6">
+        <?php if ($content_res->num_rows > 0): ?>
+            <div class="space-y-12">
+                <?php while ($content = $content_res->fetch_assoc()): ?>
+                    <section class="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100">
+                        <h2 class="text-xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                            <span class="w-2 h-8 bg-blue-500 rounded-full"></span>
+                            <?= htmlspecialchars($content['content_title']) ?>
+                        </h2>
+
+                        <?php if ($content['content_type'] == 'video' && !empty($content['content_url'])): ?>
+                            <div class="aspect-video bg-black rounded-[2rem] overflow-hidden mb-8 shadow-2xl">
+                                <iframe class="w-full h-full" src="<?= $content['content_url'] ?>" frameborder="0" allowfullscreen></iframe>
+                            </div>
+                        <?php endif; ?>
+
+                        <div class="prose prose-blue max-w-none text-gray-600 leading-relaxed text-justify">
+                            <?= nl2br($content['content_body']) ?>
+                        </div>
+
+                        <?php if ($content['content_type'] == 'pdf' && !empty($content['content_url'])): ?>
+                            <div class="mt-8 p-4 bg-blue-50 rounded-2xl flex items-center justify-between">
+                                <div class="flex items-center gap-3">
+                                    <span class="text-2xl">📄</span>
+                                    <p class="text-xs font-bold text-blue-700 uppercase">Materi PDF Tersedia</p>
                                 </div>
-                            <?php endif; ?>
-                        </div>
-                        
-                        <div class="d-flex justify-content-between">
-                            <div>
-                                <?php
-                                // Cari modul sebelumnya
-                                $modules->data_seek(0);
-                                $prevModule = null;
-                                $foundCurrent = false;
-                                while ($m = $modules->fetch_assoc()) {
-                                    if ($foundCurrent && $m['id'] != $moduleId) {
-                                        $prevModule = $m;
-                                        break;
-                                    }
-                                    if ($m['id'] == $moduleId) {
-                                        $foundCurrent = true;
-                                    }
-                                }
-                                
-                                // Cari modul berikutnya
-                                $modules->data_seek(0);
-                                $nextModule = null;
-                                $foundCurrent = false;
-                                while ($m = $modules->fetch_assoc()) {
-                                    if ($foundCurrent) {
-                                        $nextModule = $m;
-                                        break;
-                                    }
-                                    if ($m['id'] == $moduleId) {
-                                        $foundCurrent = true;
-                                    }
-                                }
-                                ?>
-                                
-                                <?php if ($prevModule): ?>
-                                    <a href="<?php echo url('peserta/learn.php?course_id=' . $courseId . '&module_id=' . $prevModule['id']); ?>" 
-                                       class="btn btn-outline-primary">
-                                        <i class="bi bi-arrow-left"></i> Sebelumnya
-                                    </a>
-                                <?php endif; ?>
+                                <a href="<?= $content['content_url'] ?>" target="_blank" class="text-xs font-bold bg-white text-blue-600 px-4 py-2 rounded-xl shadow-sm hover:bg-blue-100 transition">Buka Dokumen</a>
                             </div>
-                            
-                            <div>
-                                <?php
-                                $isCurrentCompleted = isset($progress[$moduleId]) && $progress[$moduleId] == 'completed';
-                                ?>
-                                
-                                <?php if (!$isCurrentCompleted): ?>
-                                    <form method="POST" action="" class="d-inline">
-                                        <button type="submit" name="mark_complete" class="btn btn-success">
-                                            <i class="bi bi-check-circle"></i> Mark as Complete
-                                        </button>
-                                    </form>
-                                <?php else: ?>
-                                    <span class="badge bg-success"><i class="bi bi-check-circle"></i> Completed</span>
-                                <?php endif; ?>
-                                
-                                <?php if ($nextModule): ?>
-                                    <a href="<?php echo url('peserta/learn.php?course_id=' . $courseId . '&module_id=' . $nextModule['id']); ?>" 
-                                       class="btn btn-primary">
-                                        Selanjutnya <i class="bi bi-arrow-right"></i>
-                                    </a>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            <?php else: ?>
-                <div class="alert alert-info">Tidak ada modul tersedia.</div>
-            <?php endif; ?>
+                        <?php endif; ?>
+                    </section>
+                <?php endwhile; ?>
+            </div>
+        <?php else: ?>
+            <div class="text-center py-20">
+                <span class="text-6xl block mb-6">📔</span>
+                <h2 class="text-xl font-bold text-gray-800">Isi Modul Belum Diunggah</h2>
+                <p class="text-gray-400 text-sm mt-2">Instruktur sedang menyusun materi terbaik untuk Anda.</p>
+            </div>
+        <?php endif; ?>
+
+        <div class="mt-16 flex items-center justify-between border-t border-gray-100 pt-10">
+            <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Selesaikan materi untuk membuka sertifikat</p>
+            <button onclick="window.scrollTo({top: 0, behavior: 'smooth'})" class="text-blue-600 font-bold text-xs hover:underline">Kembali ke Atas ↑</button>
         </div>
     </div>
-</div>
 
-<?php include '../includes/footer.php'; ?>
-
+</body>
+</html>

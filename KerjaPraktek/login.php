@@ -3,19 +3,11 @@ require_once 'config/database.php';
 require_once 'includes/functions.php';
 session_start();
 
-$pageTitle = "Login - PT Artavista";
+$pageTitle = "Login - ByteForge LMS";
 
 // Cek jika sudah login
 if (isset($_SESSION['user_id'])) {
-    $basePath = getBasePath();
-    $role = $_SESSION['role'];
-    if ($role == 'peserta') {
-        header("Location: {$basePath}/peserta/dashboard.php");
-    } elseif ($role == 'pengajar') {
-        header("Location: {$basePath}/pengajar/dashboard.php");
-    } elseif ($role == 'admin') {
-        header("Location: {$basePath}/admin/dashboard.php");
-    }
+    header("Location: peserta/dashboard.php");
     exit();
 }
 
@@ -25,11 +17,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $password = $_POST['password'] ?? '';
     
     if (empty($username_email) || empty($password)) {
-        $errors[] = "Username/Email dan Password harus diisi.";
+        $errors[] = "Email/ID Karyawan dan Password harus diisi.";
     } else {
         $conn = getDBConnection();
+        
+        // Cek apakah input berupa email atau id_karyawan
         $isEmail = filter_var($username_email, FILTER_VALIDATE_EMAIL);
-        $query = $isEmail ? "SELECT * FROM users WHERE email = ? AND status = 'active'" : "SELECT * FROM users WHERE username = ? AND status = 'active'";
+        
+        // Query yang benar untuk ByteForgeDB
+        $query = "SELECT * FROM USERS WHERE ";
+        if ($isEmail) {
+            $query .= "email = ? AND is_active = 1";
+        } else {
+            $query .= "id_karyawan = ? AND is_active = 1";
+        }
         
         $stmt = $conn->prepare($query);
         $stmt->bind_param("s", $username_email);
@@ -38,14 +39,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         
         if ($result->num_rows == 1) {
             $user = $result->fetch_assoc();
-            if (password_verify($password, $user['password'])) {
-                $_SESSION['user_id'] = $user['id'];
-                $_SESSION['username'] = $user['username'];
-                $_SESSION['role'] = $user['role'];
+            
+            // Verifikasi password menggunakan password_verify
+            if (password_verify($password, $user['kata_sandi'])) {
+                // Set session
+                $_SESSION['user_id'] = $user['user_id'];
+                $_SESSION['id_karyawan'] = $user['id_karyawan'];
                 $_SESSION['nama_lengkap'] = $user['nama_lengkap'];
+                $_SESSION['email'] = $user['email'];
                 
-                $basePath = getBasePath();
-                header("Location: {$basePath}/" . $user['role'] . "/dashboard.php");
+                // Redirect ke dashboard
+              header("Location: peserta/dashboard.php");
                 exit();
             } else {
                 $errors[] = "Password salah.";
@@ -69,10 +73,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         margin: 0;
         padding: 0;
     }
-.login-container {
-        /* Menambahkan jarak 80px di atas dan bawah agar tidak menempel header/footer */
+
+    .login-container {
         padding: 80px 0; 
-        min-height: calc(100vh - 200px); /* Menyesuaikan tinggi agar footer tetap di bawah */
+        min-height: calc(100vh - 200px);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -89,10 +93,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         box-shadow: 0 15px 35px rgba(0,0,0,0.1);
     }
 
-    /* Bagian Kiri (Latar Biru + Gambar) */
     .login-sidebar {
         background-color: #79a6ff;
-        background-image: url('assets/img/Background.png'); /* Gunakan gambar ChatGPT Image Jan 9 Anda */
+        background-image: url('assets/img/Background.png');
         background-size: cover;
         background-position: center;
         width: 50%;
@@ -105,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 
     .login-sidebar h2 {
-        font-family: 'Serif', 'Georgia', serif; /* Menggunakan font serif agar mirip gambar */
+        font-family: 'Serif', 'Georgia', serif;
         font-size: 2.5rem;
         font-weight: bold;
         line-height: 1.2;
@@ -119,7 +122,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         z-index: 2;
     }
 
-    /* Bagian Kanan (Form) */
     .login-form-area {
         width: 50%;
         padding: 60px;
@@ -195,40 +197,40 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <div class="login-card">
         <div class="login-sidebar">
             <h2>Setiap Langkah Belajar Membawa Perubahan</h2>
-            <p>Mari berkembang bersama dan wujudkan potensi terbaikmu di PT Artavista.</p>
+            <p>Mari berkembang bersama dan wujudkan potensi terbaikmu di ByteForge.</p>
         </div>
 
         <div class="login-form-area">
             <h3>Welcome Back</h3>
-            <p class="text-muted mb-4">Enter your email and password to access your account</p>
+            <p class="text-muted mb-4">Masukkan email atau ID Karyawan dan password Anda</p>
 
             <?php if (!empty($errors)): ?>
                 <div class="alert alert-danger py-2 small">
-                    <?php foreach ($errors as $error) echo htmlspecialchars($error); ?>
+                    <?php foreach ($errors as $error) echo htmlspecialchars($error) . '<br>'; ?>
                 </div>
             <?php endif; ?>
 
             <form method="POST">
                 <div class="mb-3">
-                    <label class="form-label small fw-bold">Email</label>
-                    <input type="text" name="username_email" class="form-control" placeholder="Enter your email" required autofocus>
+                    <label class="form-label small fw-bold">Email atau ID Karyawan</label>
+                    <input type="text" name="username_email" class="form-control" placeholder="Masukkan email atau ID karyawan" required autofocus>
                 </div>
                 <div class="mb-3">
                     <label class="form-label small fw-bold">Password</label>
-                    <input type="password" name="password" class="form-control" placeholder="Enter your password" required>
+                    <input type="password" name="password" class="form-control" placeholder="Masukkan password" required>
                 </div>
 
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <div class="form-check">
                         <input type="checkbox" class="form-check-input" id="remember">
-                        <label class="form-check-label small" for="remember">Remember Me</label>
+                        <label class="form-check-label small" for="remember">Ingat Saya</label>
                     </div>
-                    <a href="#" class="small text-decoration-none">Forgot Password?</a>
+                    <a href="#" class="small text-decoration-none">Lupa Password?</a>
                 </div>
 
-                <div class="d-grid">
-                    <button type="submit" class="btn btn-signin">Sign In</button>
-                </div>
+<div class="d-grid">
+    <button type="submit" class="btn btn-signin">Sign In</button>
+</div>
             </form>
 
             <div class="divider">
@@ -241,7 +243,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             </button>
 
             <p class="text-center mt-4 small">
-                Don't have an account? <a href="register.php" class="fw-bold text-decoration-none text-dark">Sign Up</a>
+                Belum punya akun? <a href="register.php" class="fw-bold text-decoration-none text-dark">Sign Up</a>
             </p>
         </div>
     </div>
