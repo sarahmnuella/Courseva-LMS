@@ -25,7 +25,7 @@
                 <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 px-2">Overview</p>
                 <div class="sidebar-item cursor-pointer"><span>🏠</span><a href="dashboard.php">Dashboard</a></div>
                 <div class="sidebar-item sidebar-active cursor-pointer"><span>🕒</span> <a href="history.php">History</a></div>
-                <div class="sidebar-item cursor-pointer"><span>📖</span><a href="lesson.php">Lesson</a></div>
+            <a href="dashboard.php" class="sidebar-item"><span>📖</span> Lesson</a>
                 <div class="sidebar-item cursor-pointer"><span>📋</span> <a href="task.php">Task</a></div>
                 </ul>
             </div>

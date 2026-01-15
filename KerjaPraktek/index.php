@@ -157,8 +157,7 @@ $popularCourses = $conn->query($query);
                     <p class="hero-subtitle">
                         Platform pembelajaran ByteForge untuk pengembangan karyawan.
                     </p>
-                    <a href="<?php echo url('register.php'); ?>" class="btn btn-register-main">Register</a>
-                </div>
+<a href="login.php" class="btn btn-register-main">Register</a>                </div>
                 <div class="col-lg-5 text-center d-none d-lg-block">
                     <img src="assets/img/ilustrasi.png" alt="Learning Illustration" class="img-fluid" style="max-height: 400px;">
                 </div>
