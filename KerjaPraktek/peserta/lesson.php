@@ -10,7 +10,6 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $user_id = $_SESSION['user_id'];
-$user_name = $_SESSION['nama_lengkap'] ?? 'User';
 $course_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
 // 1. Ambil Data Course
@@ -27,7 +26,6 @@ $module_query = "SELECT * FROM MODULES WHERE course_id = ? ORDER BY module_order
 $module_res = executeQuery($module_query, "i", [$course_id]);
 $modules = [];
 while ($row = $module_res->fetch_assoc()) {
-    // Cek status penyelesaian tiap modul
     $progress_query = "SELECT is_completed FROM USER_MODULE_PROGRESS WHERE user_id = ? AND module_id = ?";
     $progress_res = executeQuery($progress_query, "ii", [$user_id, $row['module_id']]);
     $progress_data = $progress_res->fetch_assoc();
@@ -36,7 +34,6 @@ while ($row = $module_res->fetch_assoc()) {
     $modules[] = $row;
 }
 
-// 3. Hitung Progres Keseluruhan
 $total_modules = count($modules);
 $completed_count = 0;
 foreach ($modules as $m) {
@@ -45,23 +42,14 @@ foreach ($modules as $m) {
 
 $perc = ($total_modules > 0) ? ($completed_count / $total_modules) * 100 : 0;
 
-// 4. SINKRONISASI KE DATABASE (Tracking Progress)
-$check_p = executeQuery("SELECT progress_id FROM USER_COURSE_PROGRESS WHERE user_id = ? AND course_id = ?", "ii", [$user_id, $course_id]);
+// 3. Ambil data user lengkap (untuk foto profil)
+$user_data = executeQuery("SELECT nama_lengkap, fotoProfil FROM USERS WHERE user_id = ?", "i", [$user_id])->fetch_assoc();
+$user_name = $user_data['nama_lengkap'];
+$user_photo = $user_data['fotoProfil'];
 
-if ($check_p->num_rows > 0) {
-    $status_current = ($perc >= 100) ? 'completed' : 'in_progress';
-    $update_p = "UPDATE USER_COURSE_PROGRESS SET progress_percentage = ?, status = ?, last_accessed = CURRENT_TIMESTAMP WHERE user_id = ? AND course_id = ?";
-    executeUpdate($update_p, "dsii", [$perc, $status_current, $user_id, $course_id]);
-} else {
-    $insert_p = "INSERT INTO USER_COURSE_PROGRESS (user_id, course_id, status, progress_percentage, started_at) VALUES (?, ?, 'in_progress', ?, CURRENT_TIMESTAMP)";
-    executeInsert($insert_p, "iid", [$user_id, $course_id, $perc]);
-}
+// 4. Query Daftar Teman
+$friend_result = executeQuery("SELECT nama_lengkap, fotoProfil FROM USERS WHERE user_id != ? LIMIT 3", "i", [$user_id]);
 
-// 5. QUERY DAFTAR TEMAN (FRIENDS) - Sesuai Sidebar Dashboard
-$friend_query = "SELECT nama_lengkap FROM USERS WHERE user_id != ? LIMIT 3";
-$friend_result = executeQuery($friend_query, "i", [$user_id]);
-
-// Cek apakah semua modul sudah selesai untuk membuka Quiz
 $all_completed = ($total_modules > 0 && $completed_count >= $total_modules);
 ?>
 
@@ -72,125 +60,152 @@ $all_completed = ($total_modules > 0 && $completed_count >= $total_modules);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Courseva - <?= htmlspecialchars($course['course_name']) ?></title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
-        .sidebar-item { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 12px; transition: 0.3s; color: #64748b; font-size: 14px; }
-        .sidebar-item:hover { background-color: #eff6ff; color: #3b82f6; }
-        .sidebar-active { background-color: #eff6ff; color: #3b82f6; font-weight: 600; }
-        .module-card:hover { transform: translateY(-5px); }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; color: #1e293b; }
+        .sidebar-item { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 10px; transition: 0.2s; color: #64748b; font-size: 14px; font-weight: 500; }
+        .sidebar-item:hover { background-color: #f1f5f9; color: #3b82f6; }
+        .sidebar-active { background-color: #eff6ff; color: #2563eb; font-weight: 600; }
+        .module-card { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); border: 1px solid #e2e8f0; }
+        .module-card:hover { transform: translateY(-4px); box-shadow: 0 12px 20px -5px rgba(0, 0, 0, 0.05); border-color: #3b82f6; }
     </style>
 </head>
-<body class="flex">
+<body class="flex min-h-screen">
 
-    <aside class="w-64 h-screen bg-white p-6 border-r border-gray-100 flex flex-col fixed left-0 top-0 z-50 shadow-sm">
+    <aside class="w-64 h-screen bg-white p-6 border-r border-slate-200 flex flex-col fixed left-0 top-0 z-50">
         <div class="flex items-center gap-3 mb-10 px-2">
-            <img src="../assets/img/Logo Artavista.png" alt="Logo" class="w-10 h-10 object-contain rounded-lg shadow-sm" onerror="this.src='https://via.placeholder.com/40'">
-            <span class="font-bold text-blue-900 tracking-wide text-lg">COURSEVA</span>
+            <img src="../assets/img/Logo Artavista.png" alt="Logo" class="w-9 h-9 object-contain" onerror="this.src='https://via.placeholder.com/40'">
+            <span class="font-bold text-slate-800 tracking-tight text-xl">COURSEVA</span>
         </div>
 
         <nav class="space-y-1 flex-1 overflow-y-auto">
-            <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 px-2">Overview</p>
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4 px-2">Main Menu</p>
             <a href="dashboard.php" class="sidebar-item"><span>🏠</span> Dashboard</a>
             <a href="history.php" class="sidebar-item"><span>🕒</span> History</a>
-            <a href="dashboard.php" class="sidebar-item"><span>📖</span> Lesson</a>
-            <a href="task.php" class="sidebar-item"><span>📋</span> Task</a>
+ <a href="courses.php" class="sidebar-item sidebar-active"><span>📖</span> Lesson</a>
+    <a href="task.php" class="sidebar-item"><span>📋</span> Task</a>            
             
             <div class="mt-8">
-                <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 px-2">Friends</p>
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4 px-2">Study Group</p>
                 <div class="space-y-3 px-2">
                     <?php while($friend = $friend_result->fetch_assoc()): ?>
                     <div class="flex items-center gap-3">
-                        <div class="w-7 h-7 bg-green-100 rounded-full flex items-center justify-center text-[10px]">👤</div>
-                        <span class="text-xs text-gray-600 truncate"><?= htmlspecialchars($friend['nama_lengkap']) ?></span>
+                        <div class="w-7 h-7 rounded-full bg-slate-100 overflow-hidden border border-slate-200">
+                            <?php if($friend['fotoProfil']): ?>
+                                <img src="../assets/img/profiles/<?= $friend['fotoProfil'] ?>" class="w-full h-full object-cover">
+                            <?php else: ?>
+                                <div class="w-full h-full flex items-center justify-center text-[10px]">👤</div>
+                            <?php endif; ?>
+                        </div>
+                        <span class="text-xs text-slate-600 font-medium truncate"><?= htmlspecialchars($friend['nama_lengkap']) ?></span>
                     </div>
                     <?php endwhile; ?>
                 </div>
             </div>
         </nav>
 
-        <div class="mt-auto pt-6 border-t border-gray-100 space-y-1">
-            <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 px-2">Account</p>
-            <a href="profil.php" class="sidebar-item"><span>⚙️</span> Profil</a>
+        <div class="mt-auto pt-6 border-t border-slate-100">
+            <a href="profile.php" class="sidebar-item mb-1"><span>⚙️</span> Profil</a>
             <a href="../logout.php" class="sidebar-item text-red-500 hover:bg-red-50"><span>🚪</span> Keluar</a>
         </div>
     </aside>
 
-    <main class="flex-1 ml-64 p-10">
+    <main class="flex-1 ml-64 p-8 lg:p-12">
         <div class="flex items-center justify-between mb-10">
-            <div class="flex items-center gap-4">
-                <a href="dashboard.php" class="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm border border-gray-100 text-gray-400 hover:text-blue-600 transition">←</a>
+            <div class="flex items-center gap-5">
+                <a href="dashboard.php" class="w-10 h-10 flex items-center justify-center bg-white rounded-xl border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-600 transition-all">←</a>
                 <div>
-                    <h1 class="text-xl font-bold text-slate-800"><?= htmlspecialchars($course['course_name']) ?></h1>
-                    <p class="text-xs text-slate-400 mt-1 uppercase font-semibold tracking-wider">Materi Kursus • <?= $completed_count ?>/<?= $total_modules ?> Selesai</p>
+                    <h1 class="text-2xl font-bold text-slate-800 tracking-tight"><?= htmlspecialchars($course['course_name']) ?></h1>
+                    <div class="flex items-center gap-3 mt-1">
+                        <span class="px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold rounded uppercase tracking-wider"><?= htmlspecialchars($course['level']) ?></span>
+                        <span class="text-xs text-slate-400 font-medium">Progress: <?= $completed_count ?> dari <?= $total_modules ?> Modul Selesai</span>
+                    </div>
                 </div>
             </div>
-            <a href="profil.php" class="flex items-center gap-4 group cursor-pointer">
-                <span class="text-sm font-medium text-gray-600 group-hover:text-blue-600 transition">Halo, <?= htmlspecialchars($user_name); ?>!</span>
-                <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center group-hover:shadow-md transition">
-                    <span>👤</span>
+            
+            <a href="profile.php" class="flex items-center gap-3 bg-white pr-4 pl-1.5 py-1.5 rounded-full border border-slate-200 hover:shadow-sm transition-all">
+                <div class="w-8 h-8 rounded-full overflow-hidden bg-slate-100 border border-slate-200">
+                    <?php if($user_photo): ?>
+                        <img src="../assets/img/profiles/<?= $user_photo ?>" class="w-full h-full object-cover">
+                    <?php else: ?>
+                        <div class="w-full h-full flex items-center justify-center text-sm">👤</div>
+                    <?php endif; ?>
                 </div>
+                <span class="text-sm font-semibold text-slate-700"><?= htmlspecialchars($user_name) ?></span>
             </a>
         </div>
 
-        <div class="w-full h-2 bg-gray-200 rounded-full mb-12 overflow-hidden">
-            <div class="h-full bg-blue-500 transition-all duration-1000" style="width: <?= $perc ?>%"></div>
+        <div class="mb-10">
+            <div class="flex justify-between items-end mb-2">
+                <span class="text-xs font-bold text-slate-500 uppercase tracking-widest">Completion Progress</span>
+                <span class="text-sm font-bold text-blue-600"><?= round($perc) ?>%</span>
+            </div>
+            <div class="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                <div class="h-full bg-blue-600 transition-all duration-1000" style="width: <?= $perc ?>%"></div>
+            </div>
         </div>
 
+        <?php if ($all_completed): ?>
+            <div class="bg-white border-2 border-blue-500/20 p-6 rounded-2xl mb-12 flex items-center justify-between shadow-sm">
+                <div class="flex items-center gap-6">
+                    <div class="w-14 h-14 bg-blue-50 rounded-xl flex items-center justify-center text-3xl">🏆</div>
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-800">Kurikulum Selesai!</h2>
+                        <p class="text-sm text-slate-500">Anda telah menguasai seluruh materi. Siap untuk sertifikasi?</p>
+                    </div>
+                </div>
+                <div class="flex gap-3">
+                    <a href="rangkuman.php?course_id=<?= $course_id ?>" class="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-all shadow-md shadow-blue-200">
+                        Buka Quiz & Sertifikat →
+                    </a>
+                </div>
+            </div>
+        <?php endif; ?>
+
         <?php if (empty($modules)): ?>
-            <div class="bg-white rounded-[3rem] p-16 text-center shadow-sm border border-slate-100">
-                <div class="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6 text-4xl">📭</div>
-                <h2 class="text-xl font-bold text-slate-800 mb-2">Modul Belum Tersedia</h2>
-                <p class="text-slate-400 text-xs max-w-xs mx-auto">Maaf, instruktur belum mengunggah materi untuk kursus ini. Silakan kembali lagi nanti.</p>
+            <div class="bg-white rounded-3xl p-16 text-center border border-slate-200">
+                <div class="text-4xl mb-4">📂</div>
+                <h2 class="text-xl font-bold text-slate-800 mb-1">Modul Belum Tersedia</h2>
+                <p class="text-slate-400 text-sm">Materi sedang disiapkan oleh instruktur.</p>
             </div>
         <?php else: ?>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <?php foreach ($modules as $mod): ?>
-                    <div class="module-card bg-white p-6 rounded-[2.5rem] border <?= $mod['is_done'] ? 'border-green-200' : 'border-slate-100' ?> shadow-sm transition-all duration-300 relative group">
-                        
+                    <div class="module-card bg-white p-6 rounded-2xl relative overflow-hidden">
                         <?php if ($mod['is_done']): ?>
-                            <div class="absolute top-6 right-6 w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center text-[10px] shadow-lg shadow-green-100">✓</div>
+                            <div class="absolute top-0 right-0 p-2">
+                                <span class="bg-green-500 text-white p-1 rounded-bl-xl rounded-tr-xl block shadow-sm">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                                </span>
+                            </div>
                         <?php endif; ?>
 
-                        <div class="flex justify-between items-start mb-6">
-                            <div class="w-12 h-12 <?= $mod['is_done'] ? 'bg-green-50' : 'bg-blue-50' ?> rounded-2xl flex items-center justify-center text-blue-600 font-bold group-hover:bg-blue-600 group-hover:text-white transition-all">
-                                <?= $mod['module_order'] ?>
+                        <div class="flex items-center gap-4 mb-5">
+                            <div class="w-10 h-10 <?= $mod['is_done'] ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600' ?> rounded-lg flex items-center justify-center font-bold text-sm">
+                                <?= str_pad($mod['module_order'], 2, '0', STR_PAD_LEFT) ?>
                             </div>
-                            <span class="text-[9px] font-bold text-slate-300 bg-slate-50 px-3 py-1 rounded-full uppercase italic tracking-tighter"><?= $mod['estimated_duration_minutes'] ?> Mins</span>
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest"><?= $mod['estimated_duration_minutes'] ?> Menit Baca</span>
                         </div>
 
-                        <h3 class="font-bold text-slate-800 mb-3 leading-tight"><?= htmlspecialchars($mod['module_name']) ?></h3>
-                        <p class="text-[11px] text-slate-400 leading-relaxed line-clamp-2 mb-6"><?= htmlspecialchars($mod['module_description'] ?: 'Pelajari materi ini untuk menguasai kompetensi baru.') ?></p>
+                        <h3 class="font-bold text-slate-800 mb-2 leading-snug h-12 overflow-hidden"><?= htmlspecialchars($mod['module_name']) ?></h3>
+                        <p class="text-xs text-slate-500 leading-relaxed mb-6 line-clamp-2 italic">
+                            <?= htmlspecialchars($mod['module_description'] ?: 'Pelajari kompetensi utama dalam bagian ini.') ?>
+                        </p>
                         
                         <a href="learn.php?course_id=<?= $course_id ?>&module_id=<?= $mod['module_id'] ?>" 
-                           class="flex items-center justify-center w-full py-3 <?= $mod['is_done'] ? 'bg-green-50 text-green-600' : 'bg-slate-50 text-slate-500' ?> group-hover:bg-blue-600 group-hover:text-white rounded-2xl text-[10px] font-bold transition-all uppercase tracking-widest">
-                            <?= $mod['is_done'] ? 'Lihat Kembali' : 'Belajar Sekarang →' ?>
+                           class="flex items-center justify-center w-full py-2.5 rounded-xl text-xs font-bold transition-all <?= $mod['is_done'] ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' : 'bg-blue-600 text-white hover:bg-blue-700' ?>">
+                            <?= $mod['is_done'] ? 'Review Materi' : 'Mulai Belajar' ?>
                         </a>
                     </div>
                 <?php endforeach; ?>
             </div>
 
-            <div class="mt-20">
-                <?php if ($all_completed): ?>
-                    <div class="bg-gradient-to-r from-blue-600 to-indigo-700 p-12 rounded-[3.5rem] text-center shadow-2xl shadow-blue-200 relative overflow-hidden">
-                        <div class="absolute top-0 right-0 p-10 opacity-10 text-white text-8xl italic">✦</div>
-                        <div class="relative z-10">
-                            <div class="w-20 h-20 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center mx-auto mb-6 text-4xl">🏆</div>
-                            <h2 class="text-3xl font-bold text-white mb-3">Langkah Terakhir!</h2>
-                            <p class="text-blue-100 mb-10 max-w-md mx-auto text-sm leading-relaxed">Selamat! Anda telah menyelesaikan seluruh modul. Silakan tinjau rangkuman materi sebelum memulai Quiz Akhir.</p>
-                            <a href="rangkuman.php?course_id=<?= $course_id ?>" class="inline-block bg-white text-blue-600 px-12 py-4 rounded-3xl font-bold text-sm hover:bg-yellow-400 hover:text-white transition-all transform hover:scale-105 shadow-xl">
-                                Buka Rangkuman & Quiz 🚀
-                            </a>
-                        </div>
-                    </div>
-                <?php else: ?>
-                    <div class="bg-slate-100 p-10 rounded-[3rem] text-center border-2 border-dashed border-slate-200">
-                        <div class="text-3xl mb-4 opacity-50">🔒</div>
-                        <h3 class="text-slate-400 font-bold text-xs uppercase tracking-widest">Akses Quiz Terkunci</h3>
-                        <p class="text-slate-400 text-[10px] mt-1">Selesaikan semua modul untuk membuka ujian kompetensi (<?= $completed_count ?>/<?= $total_modules ?>)</p>
-                    </div>
-                <?php endif; ?>
+            <?php if (!$all_completed): ?>
+            <div class="mt-10 p-5 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-center gap-4 opacity-75">
+                <span class="text-xl">🔒</span>
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-widest">Quiz Akhir Terkunci hingga seluruh modul selesai</p>
             </div>
+            <?php endif; ?>
         <?php endif; ?>
     </main>
 

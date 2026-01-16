@@ -11,7 +11,12 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $user_id = $_SESSION['user_id'];
-$user_name = $_SESSION['nama_lengkap'] ?? 'User';
+
+// --- UPDATE QUERY UNTUK MENGAMBIL FOTO PROFIL USER ---
+$user_data_query = "SELECT nama_lengkap, fotoProfil FROM USERS WHERE user_id = ?";
+$user_data_res = executeQuery($user_data_query, "i", [$user_id])->fetch_assoc();
+$user_name = $user_data_res['nama_lengkap'] ?? 'User';
+$user_photo = $user_data_res['fotoProfil'];
 
 // --- LOGIKA SEARCH ---
 $search = isset($_GET['search']) ? $_GET['search'] : '';
@@ -40,8 +45,7 @@ while ($row = $result->fetch_assoc()) {
 }
 
 // --- QUERY DAFTAR TEMAN (FRIENDS) ---
-// Mengambil data user lain dari database
-$friend_query = "SELECT nama_lengkap FROM USERS WHERE user_id != ? LIMIT 3";
+$friend_query = "SELECT nama_lengkap, fotoProfil FROM USERS WHERE user_id != ? LIMIT 3";
 $friend_result = executeQuery($friend_query, "i", [$user_id]);
 ?>
 
@@ -73,7 +77,7 @@ $friend_result = executeQuery($friend_query, "i", [$user_id]);
             <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 px-2">Overview</p>
             <a href="dashboard.php" class="sidebar-item sidebar-active"><span>🏠</span> Dashboard</a>
             <a href="history.php" class="sidebar-item"><span>🕒</span> History</a>
-            <a href="dashboard.php" class="sidebar-item"><span>📖</span> Lesson</a>
+            <a href="Course.php" class="sidebar-item"><span>📖</span> Lesson</a>
             <a href="task.php" class="sidebar-item"><span>📋</span> Task</a>
             
             <div class="mt-8">
@@ -81,7 +85,13 @@ $friend_result = executeQuery($friend_query, "i", [$user_id]);
                 <div class="space-y-3 px-2">
                     <?php while($friend = $friend_result->fetch_assoc()): ?>
                     <div class="flex items-center gap-3">
-                        <div class="w-7 h-7 bg-green-100 rounded-full flex items-center justify-center text-[10px]">👤</div>
+                        <div class="w-7 h-7 rounded-full overflow-hidden border border-gray-100">
+                            <?php if(!empty($friend['fotoProfil'])): ?>
+                                <img src="../assets/img/profiles/<?= htmlspecialchars($friend['fotoProfil']) ?>" class="w-full h-full object-cover">
+                            <?php else: ?>
+                                <div class="bg-green-100 w-full h-full flex items-center justify-center text-[10px]">👤</div>
+                            <?php label: endif; ?>
+                        </div>
                         <span class="text-xs text-gray-600 truncate"><?= htmlspecialchars($friend['nama_lengkap']) ?></span>
                     </div>
                     <?php endwhile; ?>
@@ -110,9 +120,15 @@ $friend_result = executeQuery($friend_query, "i", [$user_id]);
             </div>
             
             <a href="profil.php" class="flex items-center gap-4 group cursor-pointer">
-                <span class="text-sm font-medium text-gray-600 group-hover:text-blue-600 transition">Halo, <?php echo htmlspecialchars($user_name); ?>!</span>
-                <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center group-hover:shadow-md transition">
-                    <span>👤</span>
+                <span class="text-sm font-medium text-gray-600 group-hover:text-blue-600 transition">Halo, <?= htmlspecialchars($user_name); ?>!</span>
+                <div class="w-10 h-10 rounded-xl overflow-hidden border border-gray-200 shadow-sm transition group-hover:shadow-md">
+                    <?php if(!empty($user_photo)): ?>
+                        <img src="../assets/img/profiles/<?= htmlspecialchars($user_photo) ?>" class="w-full h-full object-cover">
+                    <?php else: ?>
+                        <div class="w-full h-full bg-blue-100 flex items-center justify-center">
+                            <span>👤</span>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </a>
         </div>
@@ -130,7 +146,7 @@ $friend_result = executeQuery($friend_query, "i", [$user_id]);
 
         <div class="flex justify-between items-center mb-8">
             <h3 class="font-bold text-gray-800 text-xl tracking-tight">Continue Learning</h3>
-            <a href="lesson.php" class="text-blue-600 text-xs font-bold uppercase tracking-wider hover:underline">View All Courses</a>
+            <a href="Course.php" class="text-blue-600 text-xs font-bold uppercase tracking-wider hover:underline">View All Courses</a>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -144,32 +160,32 @@ $friend_result = executeQuery($friend_query, "i", [$user_id]);
             <?php else: ?>
                 <?php foreach ($allCourses as $course): ?>
                 <div class="bg-white p-5 rounded-[2.5rem] shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-50 group">
-                    <div class="h-40 bg-gray-50 rounded-[2rem] mb-6 overflow-hidden relative">
-                        <img src="<?php echo !empty($course['thumbnail_url']) ? $course['thumbnail_url'] : 'https://via.placeholder.com/400x200'; ?>" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">
+                    <div class="h-40 bg-gray-50 rounded-[2rem] mb-6 overflow-hidden relative border border-slate-100">
+                        <img src="<?= !empty($course['thumbnail_url']) ? $course['thumbnail_url'] : 'https://via.placeholder.com/400x200'; ?>" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">
                         <div class="absolute top-4 left-4">
                             <span class="bg-white/90 backdrop-blur-md text-blue-600 text-[9px] px-3 py-1.5 rounded-full font-black uppercase tracking-widest shadow-sm">
-                                <?php echo htmlspecialchars($course['level']); ?>
+                                <?= htmlspecialchars($course['level']); ?>
                             </span>
                         </div>
                     </div>
                     
                     <h4 class="text-base font-bold text-gray-800 line-clamp-2 mb-6 h-12 leading-snug">
-                        <?php echo htmlspecialchars($course['course_name']); ?>
+                        <?= htmlspecialchars($course['course_name']); ?>
                     </h4>
                     
                     <div class="mt-auto">
                         <div class="flex items-center justify-between mb-2">
                             <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Progress</span>
-                            <span class="text-[10px] font-bold text-blue-600"><?php echo round($course['progress_percentage']); ?>%</span>
+                            <span class="text-[10px] font-bold text-blue-600"><?= round($course['progress_percentage']); ?>%</span>
                         </div>
                         
                         <div class="h-2 bg-gray-50 rounded-full overflow-hidden mb-6">
-                            <div class="h-full bg-blue-500 rounded-full transition-all duration-1000" style="width: <?php echo $course['progress_percentage']; ?>%"></div>
+                            <div class="h-full bg-blue-500 rounded-full transition-all duration-1000" style="width: <?= $course['progress_percentage']; ?>%"></div>
                         </div>
 
-                        <a href="lesson.php?id=<?php echo $course['course_id']; ?>" 
-                           class="block text-center py-3.5 <?php echo ($course['progress_percentage'] > 0) ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' : 'bg-slate-50 text-slate-500'; ?> text-[10px] font-black rounded-2xl hover:opacity-90 transition-all uppercase tracking-[0.1em]">
-                            <?php echo ($course['progress_percentage'] > 0) ? 'Lanjutkan Belajar' : 'Mulai Belajar'; ?>
+                        <a href="lesson.php?id=<?= $course['course_id']; ?>" 
+                           class="block text-center py-3.5 <?= ($course['progress_percentage'] > 0) ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' : 'bg-slate-50 text-slate-500'; ?> text-[10px] font-black rounded-2xl hover:opacity-90 transition-all uppercase tracking-[0.1em]">
+                            <?= ($course['progress_percentage'] > 0) ? 'Lanjutkan Belajar' : 'Mulai Belajar'; ?>
                         </a>
                     </div>
                 </div>

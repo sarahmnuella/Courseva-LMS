@@ -12,8 +12,8 @@ if (!isset($_SESSION['user_id'])) {
 $user_id = $_SESSION['user_id'];
 $user_name = $_SESSION['nama_lengkap'] ?? 'User';
 
-// 1. Ambil data user lengkap dari database
-$query = "SELECT nama_lengkap, id_karyawan, email, nomor_telepon, created_at FROM USERS WHERE user_id = ?";
+// 1. Ambil data user lengkap termasuk fotoProfil dari database
+$query = "SELECT nama_lengkap, id_karyawan, email, nomor_telepon, created_at, fotoProfil FROM USERS WHERE user_id = ?";
 $result = executeQuery($query, "i", [$user_id]);
 $user = $result->fetch_assoc();
 
@@ -23,7 +23,7 @@ $stats_query = "SELECT
     (SELECT COUNT(*) FROM USER_COURSE_PROGRESS WHERE user_id = ?) as total_enrolled";
 $stats = executeQuery($stats_query, "ii", [$user_id, $user_id])->fetch_assoc();
 
-// 3. Query Daftar Teman (Friends) - Sesuai Sidebar Dashboard
+// 3. Query Daftar Teman (Friends) untuk Sidebar
 $friend_query = "SELECT nama_lengkap FROM USERS WHERE user_id != ? LIMIT 3";
 $friend_result = executeQuery($friend_query, "i", [$user_id]);
 ?>
@@ -45,7 +45,7 @@ $friend_result = executeQuery($friend_query, "i", [$user_id]);
 </head>
 <body class="flex">
 
-    <aside class="w-64 h-screen bg-white p-6 border-r border-gray-100 flex flex-col fixed left-0 top-0 z-50">
+    <aside class="w-64 h-screen bg-white p-6 border-r border-gray-100 flex flex-col fixed left-0 top-0 z-50 shadow-sm">
         <div class="flex items-center gap-3 mb-10 px-2">
             <img src="../assets/img/Logo Artavista.png" alt="Logo" class="w-10 h-10 object-contain rounded-lg shadow-sm" onerror="this.src='https://via.placeholder.com/40'">
             <span class="font-bold text-blue-900 tracking-wide">COURSEVA</span>
@@ -55,8 +55,8 @@ $friend_result = executeQuery($friend_query, "i", [$user_id]);
             <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 px-2">Overview</p>
             <a href="dashboard.php" class="sidebar-item"><span>🏠</span> Dashboard</a>
             <a href="history.php" class="sidebar-item"><span>🕒</span> History</a>
-            <a href="dashboard.php" class="sidebar-item"><span>📖</span> Lesson</a>
-            <a href="task.php" class="sidebar-item"><span>📋</span> Task</a>
+ <a href="courses.php" class="sidebar-item sidebar-active"><span>📖</span> Lesson</a>
+             <a href="task.php" class="sidebar-item"><span>📋</span> Task</a>
             
             <div class="mt-8">
                 <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 px-2">Friends</p>
@@ -83,8 +83,12 @@ $friend_result = executeQuery($friend_query, "i", [$user_id]);
             <div class="flex-1"></div>
             <a href="profile.php" class="flex items-center gap-4 group cursor-pointer">
                 <span class="text-sm font-medium text-gray-600 group-hover:text-blue-600 transition">Halo, <?= htmlspecialchars($user_name); ?>!</span>
-                <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center group-hover:shadow-md transition">
-                    <span>👤</span>
+                <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center group-hover:shadow-md transition overflow-hidden">
+                    <?php if (!empty($user['fotoProfil'])): ?>
+                        <img src="../assets/img/profiles/<?= htmlspecialchars($user['fotoProfil']) ?>" class="w-full h-full object-cover">
+                    <?php else: ?>
+                        <span>👤</span>
+                    <?php endif; ?>
                 </div>
             </a>
         </div>
@@ -97,7 +101,11 @@ $friend_result = executeQuery($friend_query, "i", [$user_id]);
                     <div class="absolute -bottom-12 left-10">
                         <div class="w-28 h-28 bg-white rounded-[2rem] p-1.5 shadow-xl">
                             <div class="w-full h-full bg-slate-50 rounded-[1.75rem] overflow-hidden flex items-center justify-center border border-slate-100">
-                                <span class="text-4xl">👤</span>
+                                <?php if (!empty($user['fotoProfil'])): ?>
+                                    <img src="../assets/img/profiles/<?= htmlspecialchars($user['fotoProfil']) ?>" class="w-full h-full object-cover">
+                                <?php else: ?>
+                                    <span class="text-4xl">👤</span>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
@@ -109,7 +117,9 @@ $friend_result = executeQuery($friend_query, "i", [$user_id]);
                             <h2 class="text-2xl font-black text-slate-800"><?= htmlspecialchars($user['nama_lengkap']) ?></h2>
                             <p class="text-slate-400 text-sm mt-1 font-medium">ID Karyawan: <span class="text-slate-600 font-bold"><?= htmlspecialchars($user['id_karyawan']) ?></span></p>
                         </div>
-                        <button class="px-8 py-3 bg-blue-50 text-blue-600 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all shadow-sm">Edit Profil</button>
+                        <a href="edit_profil.php" class="px-8 py-3 bg-blue-50 text-blue-600 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all shadow-sm flex items-center gap-2">
+                            <span>✏️</span> Edit Profil
+                        </a>
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-12">
@@ -146,10 +156,6 @@ $friend_result = executeQuery($friend_query, "i", [$user_id]);
                                     <p class="text-3xl font-black text-green-600 mb-1"><?= $stats['completed'] ?></p>
                                     <p class="text-[9px] text-green-400 font-black uppercase tracking-widest">Kursus Selesai</p>
                                 </div>
-                            </div>
-                            <div class="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 flex items-center justify-between">
-                                <p class="text-xs font-bold text-slate-500 italic">"Belajar adalah investasi terbaik."</p>
-                                <span class="text-xl">✨</span>
                             </div>
                         </div>
                     </div>

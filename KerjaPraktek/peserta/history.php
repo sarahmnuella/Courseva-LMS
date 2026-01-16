@@ -10,7 +10,12 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $user_id = $_SESSION['user_id'];
-$user_name = $_SESSION['nama_lengkap'] ?? 'User';
+
+// --- AMBIL DATA USER LENGKAP (Termasuk Foto) ---
+$user_query = "SELECT nama_lengkap, fotoProfil FROM USERS WHERE user_id = ?";
+$user_data = executeQuery($user_query, "i", [$user_id])->fetch_assoc();
+$user_name = $user_data['nama_lengkap'] ?? 'User';
+$user_photo = $user_data['fotoProfil'];
 
 // 2. Query Statistik (Kartu di atas)
 $query_stats = "SELECT 
@@ -29,8 +34,8 @@ $query_history = "SELECT c.course_id, c.course_name, c.level,
                   ORDER BY p.last_accessed DESC";
 $result_history = executeQuery($query_history, "i", [$user_id]);
 
-// 4. Query Daftar Teman (Friends) - Sesuai Sidebar Dashboard
-$friend_query = "SELECT nama_lengkap FROM USERS WHERE user_id != ? LIMIT 3";
+// 4. Query Daftar Teman (Friends)
+$friend_query = "SELECT nama_lengkap, fotoProfil FROM USERS WHERE user_id != ? LIMIT 3";
 $friend_result = executeQuery($friend_query, "i", [$user_id]);
 ?>
 
@@ -61,7 +66,7 @@ $friend_result = executeQuery($friend_query, "i", [$user_id]);
             <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 px-2">Overview</p>
             <a href="dashboard.php" class="sidebar-item"><span>🏠</span> Dashboard</a>
             <a href="history.php" class="sidebar-item sidebar-active"><span>🕒</span> History</a>
-            <a href="dashboard.php" class="sidebar-item"><span>📖</span> Lesson</a>
+             <a href="courses.php" class="sidebar-item sidebar-active"><span>📖</span> Lesson</a>
             <a href="task.php" class="sidebar-item"><span>📋</span> Task</a>
             
             <div class="mt-8">
@@ -69,7 +74,13 @@ $friend_result = executeQuery($friend_query, "i", [$user_id]);
                 <div class="space-y-3 px-2">
                     <?php while($friend = $friend_result->fetch_assoc()): ?>
                     <div class="flex items-center gap-3">
-                        <div class="w-7 h-7 bg-green-100 rounded-full flex items-center justify-center text-[10px]">👤</div>
+                        <div class="w-7 h-7 rounded-full overflow-hidden border border-gray-100">
+                            <?php if(!empty($friend['fotoProfil'])): ?>
+                                <img src="../assets/img/profiles/<?= htmlspecialchars($friend['fotoProfil']) ?>" class="w-full h-full object-cover">
+                            <?php else: ?>
+                                <div class="bg-green-100 w-full h-full flex items-center justify-center text-[10px]">👤</div>
+                            <?php endif; ?>
+                        </div>
                         <span class="text-xs text-gray-600 truncate"><?= htmlspecialchars($friend['nama_lengkap']) ?></span>
                     </div>
                     <?php endwhile; ?>
@@ -92,13 +103,19 @@ $friend_result = executeQuery($friend_query, "i", [$user_id]);
             </div>
             <a href="profil.php" class="flex items-center gap-4 group cursor-pointer">
                 <span class="text-sm font-medium text-gray-600 group-hover:text-blue-600 transition">Halo, <?= htmlspecialchars($user_name); ?>!</span>
-                <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center group-hover:shadow-md transition">
-                    <span>👤</span>
+                <div class="w-10 h-10 rounded-xl overflow-hidden border border-gray-200 shadow-sm transition group-hover:shadow-md">
+                    <?php if(!empty($user_photo)): ?>
+                        <img src="../assets/img/profiles/<?= htmlspecialchars($user_photo) ?>" class="w-full h-full object-cover">
+                    <?php else: ?>
+                        <div class="w-full h-full bg-blue-100 flex items-center justify-center">
+                            <span>👤</span>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </a>
         </div>
 
-        <div class="grid grid-cols-3 gap-6 mb-10">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
             <div class="bg-white p-5 rounded-3xl shadow-sm border border-gray-50 flex items-center gap-4">
                 <div class="w-12 h-12 bg-purple-100 rounded-2xl flex items-center justify-center text-purple-600">🏆</div>
                 <div>
@@ -122,7 +139,7 @@ $friend_result = executeQuery($friend_query, "i", [$user_id]);
             </div>
         </div>
 
-        <h3 class="font-bold text-gray-800 text-lg mb-6">Learning History</h3>
+        <h3 class="font-bold text-gray-800 text-lg mb-6 tracking-tight">Learning History</h3>
 
         <div class="bg-white rounded-[2.5rem] p-6 shadow-sm border border-gray-50 overflow-hidden">
             <table class="w-full text-left">

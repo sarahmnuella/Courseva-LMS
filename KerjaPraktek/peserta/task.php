@@ -49,8 +49,8 @@ $quiz = $quiz_res->fetch_assoc();
             <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 px-2">Overview</p>
             <a href="dashboard.php" class="sidebar-item"><span>🏠</span> Dashboard</a>
             <a href="history.php" class="sidebar-item"><span>🕒</span> History</a>
-            <a href="lesson.php" class="sidebar-item"><span>📖</span> Lesson</a>
-            <a href="task.php" class="sidebar-item sidebar-active"><span>📋</span> Task</a>
+ <a href="courses.php" class="sidebar-item sidebar-active"><span>📖</span> Lesson</a>
+             <a href="task.php" class="sidebar-item sidebar-active"><span>📋</span> Task</a>
         </nav>
     </aside>
 
